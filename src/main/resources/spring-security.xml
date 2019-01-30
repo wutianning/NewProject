@@ -1,0 +1,118 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans:beans xmlns="http://www.springframework.org/schema/security" xmlns:beans="http://www.springframework.org/schema/beans" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-*.xsd  
+                        http://www.springframework.org/schema/security http://www.springframework.org/schema/security/spring-security-*.xsd">
+
+	<global-method-security pre-post-annotations="enabled" />
+	<!-- 该路径下的资源不用过滤 -->
+	<http pattern="/js/**" security="none" />
+	<http pattern="/css/**" security="none" />
+	<http pattern="/components/**" security="none" />
+	<http pattern="/img/**" security="none" />
+	<http pattern="/login" security="none" />
+	
+	<http use-expressions="true" entry-point-ref="authenticationProcessingFilterEntryPoint" access-denied-page="/login?msg=deny">
+
+		<!-- <logout logout-url="/logout" logout-success-url="/login?msg=logout" invalidate-session="true" success-handler-ref="logoutHandler" /> -->
+		<logout logout-url="/logout" invalidate-session="true" success-handler-ref="myLogoutSuccessHandler" />
+		<!-- <custom-filter ref="myLogoutFilter" position="LOGOUT_FILTER" /> -->
+		<!-- 实现免登陆验证 -->
+		<remember-me />
+		<!--  单一登录,防止用户重复登录 gao-->
+	<!-- 	<session-management session-authentication-strategy-ref="sessionAuthenticationStrategy"/>  -->
+		
+		<custom-filter ref="concurrentSessionFilter" position="CONCURRENT_SESSION_FILTER" />
+		<custom-filter ref="myLoginFilter" position="FORM_LOGIN_FILTER"  />
+		<custom-filter ref="myFilter" before="FILTER_SECURITY_INTERCEPTOR" />
+	</http>
+
+	<!-- 登录验证器 -->
+	<beans:bean id="myLoginFilter" class="com.sinosoft.security.MyUsernamePasswordAuthenticationFilter">
+		<!-- 处理登录 -->
+		<!-- 本行为单一登录,防止用户重复登录 gao-->
+		<!-- <beans:property name="sessionAuthenticationStrategy" ref="sessionAuthenticationStrategy"/>此配置可实现获取所有登录用户信息 -->  
+		<beans:property name="filterProcessesUrl" value="/j_spring_security_check"></beans:property>
+		<beans:property name="authenticationSuccessHandler" ref="loginLogAuthenticationSuccessHandler"></beans:property>
+		<beans:property name="authenticationFailureHandler" ref="simpleUrlAuthenticationFailureHandler"></beans:property>
+		<beans:property name="authenticationManager" ref="myAuthenticationManager"></beans:property>
+	</beans:bean>
+	<!-- <beans:bean id="loginLogAuthenticationSuccessHandler" class="org.springframework.security.web.authentication.SavedRequestAwareAuthenticationSuccessHandler"> -->
+	<beans:bean id="loginLogAuthenticationSuccessHandler" class="com.sinosoft.security.MyLoginSuccessHandler">
+		<beans:property name="defaultTargetUrl" value="/main.do"></beans:property>
+	</beans:bean>
+	<!-- 登录失败后业务处理 -->
+	<beans:bean id="simpleUrlAuthenticationFailureHandler" class="org.springframework.security.web.authentication.SimpleUrlAuthenticationFailureHandler">
+		<beans:property name="defaultFailureUrl" value="/login?msg=error"></beans:property>
+	</beans:bean>
+
+	<!-- 单一登录,防止用户重复登录begin(需配合前面的引用) gao-->
+	<!-- 
+	<beans:bean id="sessionAuthenticationStrategy" 
+			class="org.springframework.security.web.authentication.session.ConcurrentSessionControlStrategy">
+  		<beans:constructor-arg name="sessionRegistry" ref="sessionRegistry" />
+  		<beans:property name="maximumSessions" value="1" />
+  		<beans:property name="exceptionIfMaximumExceeded" value="false" />
+ 	</beans:bean>
+ 	 -->
+	<beans:bean id="concurrentSessionFilter" class="org.springframework.security.web.session.ConcurrentSessionFilter">
+        <beans:property name="sessionRegistry" ref="sessionRegistry" />
+        <beans:property name="expiredUrl" value="/login?msg=expired" />
+        <beans:property name="logoutHandlers">
+            <beans:list>
+                <beans:ref local="logoutHandler" />
+                <!-- 此处可解除注释,实现logout后的处理 -->
+                <beans:bean id="customLogoutSuccessHandler" class="com.sinosoft.security.MyLogoutHandler" />
+            </beans:list>
+        </beans:property>
+    </beans:bean>
+    <beans:bean id="sessionRegistry" class="org.springframework.security.core.session.SessionRegistryImpl" />
+    <!-- 注销监听器  -->
+    <beans:bean id="logoutHandler" class="org.springframework.security.web.authentication.logout.SecurityContextLogoutHandler">
+        <beans:property name="InvalidateHttpSession" value="true" />
+    </beans:bean>
+    <beans:bean id="myLogoutSuccessHandler" class="com.sinosoft.security.MyLogoutSuccessHandler" />
+    <!-- 单一登录,防止用户重复登录end -->
+    
+	<!-- 配置过滤器 -->
+	<beans:bean id="myFilter" class="com.sinosoft.security.MySecurityFilter">
+		<!-- 用户拥有的权限 -->
+		<beans:property name="authenticationManager" ref="myAuthenticationManager" />
+		<!-- 用户是否拥有所请求资源的权限 -->
+		<beans:property name="accessDecisionManager" ref="myAccessDecisionManager" />
+		<!-- 资源与权限对应关系 -->
+		<beans:property name="securityMetadataSource" ref="mySecurityMetadataSource" />
+	</beans:bean>
+
+	<!-- 实现了UserDetailsService的Bean --><!-- 用户拥有的权限：登录后取得用户所保有的权限信息 -->
+	<authentication-manager alias="myAuthenticationManager">
+		<authentication-provider user-service-ref="myUserDetailServiceImpl" >
+			<password-encoder hash="md5">
+				<salt-source system-wide="sinosoft"/>
+			</password-encoder>
+		</authentication-provider>
+	</authentication-manager>
+
+	<beans:bean id="myAccessDecisionManager" class="com.sinosoft.security.MyAccessDecisionManager"></beans:bean>
+	<beans:bean id="mySecurityMetadataSource" class="com.sinosoft.security.MySecurityMetadataSource"></beans:bean>
+	<beans:bean id="myUserDetailServiceImpl" class="com.sinosoft.security.MyUserDetailServiceImpl"></beans:bean>
+
+	<!-- 未登录的切入点 -->
+	<beans:bean id="authenticationProcessingFilterEntryPoint" class="org.springframework.security.web.authentication.LoginUrlAuthenticationEntryPoint">
+		<beans:property name="loginFormUrl" value="/login"></beans:property>
+	</beans:bean>
+	
+	<!-- 配合loginfilter实现logout处理的自定义扩展 -->
+	<!-- <beans:bean id="myLogoutFilter" class="com.sinosoft.security.MyLogoutFilter">
+        处理退出的虚拟url
+         <beans:property name="filterProcessesUrl" value="/logout" />
+         退出处理成功后的默认显示url
+         <beans:constructor-arg index="0" value="/login?mg=logout" />
+         <beans:constructor-arg index="1">
+             退出成功后的handler列表
+             <beans:array>
+                 <beans:ref bean="logoutHandler"/>
+                 加入了开发人员自定义的退出成功处理
+                 <beans:bean id="customLogoutSuccessHandler" class="com.sinosoft.security.MyLogoutHandler" />
+             </beans:array>
+         </beans:constructor-arg>
+     </beans:bean> -->
+</beans:beans>

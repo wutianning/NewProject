@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+<mapper namespace="com.zkr.api.dao.UserDao">
+
+	<resultMap id="BaseResultMap"  type="com.wtn.user.bean.User" >
+	    <result column="username"  property="username"  jdbcType="VARCHAR" />
+	    <result column="userpwd"  property="userpwd"  jdbcType="VARCHAR" />
+	</resultMap>
+<sql id="queryall">
+	username,userpwd
+</sql>
+<select id="queryUserByLoginId" parameterType="java.lang.String" resultMap="BaseResultMap">
+	select 
+	<include refid="queryall"></include>
+	from t_user 
+	where username = #{username,jdbcType = VARCHAR}
+</select>
+<select id="checkUserName" parameterType="java.lang.String" resultMap="BaseResultMap">
+	select 
+	*
+	from t_user 
+	where username = #{username,jdbcType = VARCHAR}
+</select>
+
+
+
+<insert id="registerUser" parameterType="com.wtn.user.bean.User">
+
+  	 insert into t_user
+    <trim prefix="(" suffix=")" suffixOverrides="," >
+      <if test="username != null" >
+        username,
+      </if>
+      <if test="userpwd != null" >
+        userpwd,
+      </if>
+    </trim>
+    <trim prefix="values (" suffix=")" suffixOverrides="," >
+      <if test="username != null" >
+        #{username,jdbcType=VARCHAR},
+      </if>
+      <if test="userpwd != null" >
+        #{userpwd,jdbcType=VARCHAR},
+      </if>
+    </trim>
+  </insert>
+</mapper>
